@@ -93,3 +93,28 @@ typings/
 out/
 .specstory
 .specstory/
+# Added by code-review-graph
+.code-review-graph/
+
+# Python virtualenv + caches (uv scaffold; unrelated to the Electron app)
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local agent/tooling config (personal, and .mcp.json hardcodes an absolute path)
+.claude/
+.mcp.json
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS artifacts (Windows creates these when browsing the repo from Explorer)
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Build output (forge uses out/, but some makers emit dist/)
+dist/

@@ -7,6 +7,7 @@ import { AssistantView } from '../views/AssistantView.js';
 import { OnboardingView } from '../views/OnboardingView.js';
 import { AICustomizeView } from '../views/AICustomizeView.js';
 import { FeedbackView } from '../views/FeedbackView.js';
+import { TranscriptView } from '../views/TranscriptView.js';
 
 export class CheatingDaddyApp extends LitElement {
     static styles = css`
@@ -388,6 +389,9 @@ export class CheatingDaddyApp extends LitElement {
         _updateAvailable: { state: true },
         _whisperDownloading: { state: true },
         _localAiDownloadProgress: { state: true },
+        transcriptLines: { type: Array },
+        transcriptPartial: { type: String },
+        transcriptTranslateTo: { type: String },
     };
 
     constructor() {
@@ -403,6 +407,9 @@ export class CheatingDaddyApp extends LitElement {
         this.selectedImageQuality = 'medium';
         this.layoutMode = 'normal';
         this.responses = [];
+        this.transcriptLines = [];
+        this.transcriptPartial = '';
+        this.transcriptTranslateTo = '';
         this.currentResponseIndex = -1;
         this._viewInstances = new Map();
         this._isClickThrough = false;
@@ -562,7 +569,9 @@ export class CheatingDaddyApp extends LitElement {
     }
 
     async handleClose() {
-        if (this.currentView === 'assistant') {
+        // Any live view ends the session and returns home; only the non-live
+        // views treat close as "quit the app".
+        if (this._isLiveMode()) {
             cheatingDaddy.stopCapture();
             if (window.require) {
                 const { ipcRenderer } = window.require('electron');
@@ -570,6 +579,8 @@ export class CheatingDaddyApp extends LitElement {
             }
             this.sessionActive = false;
             this._stopTimer();
+            this.transcriptLines = [];
+            this.transcriptPartial = '';
             this.currentView = 'main';
         } else {
             if (window.require) {
@@ -619,6 +630,36 @@ export class CheatingDaddyApp extends LitElement {
             }
         } else if (providerMode === 'local') {
             const success = await cheatingDaddy.initializeLocal(this.selectedProfile);
+            if (!success) {
+                const mainView = this.shadowRoot.querySelector('main-view');
+                if (mainView && mainView.triggerApiKeyError) {
+                    mainView.triggerApiKeyError();
+                }
+                return;
+            }
+        } else if (providerMode === 'transcribe') {
+            const success = await cheatingDaddy.initializeTranscribe();
+            if (!success) {
+                const mainView = this.shadowRoot.querySelector('main-view');
+                if (mainView && mainView.triggerApiKeyError) {
+                    mainView.triggerApiKeyError();
+                }
+                return;
+            }
+
+            const config = await cheatingDaddy.storage.getConfig();
+            this.transcriptTranslateTo = config.transcribeTranslateTo || '';
+            this.transcriptLines = [];
+            this.transcriptPartial = '';
+
+            cheatingDaddy.startCapture(this.selectedScreenshotInterval, this.selectedImageQuality);
+            this.startTime = Date.now();
+            this.sessionActive = true;
+            this.currentView = 'transcript';
+            this._startTimer();
+            return;
+        } else if (providerMode === 'openai') {
+            const success = await cheatingDaddy.initializeOpenAI(this.selectedProfile);
             if (!success) {
                 const mainView = this.shadowRoot.querySelector('main-view');
                 if (mainView && mainView.triggerApiKeyError) {
@@ -733,7 +774,36 @@ export class CheatingDaddyApp extends LitElement {
     // ── Helpers ──
 
     _isLiveMode() {
-        return this.currentView === 'assistant';
+        return this.currentView === 'assistant' || this.currentView === 'transcript';
+    }
+
+    // ── Live transcript ──
+
+    updateTranscriptPartial(data) {
+        this.transcriptPartial = data.text || '';
+        this.requestUpdate();
+    }
+
+    commitTranscriptLine(data) {
+        if (!data.text || !data.text.trim()) {
+            this.transcriptPartial = '';
+            this.requestUpdate();
+            return;
+        }
+
+        this.transcriptLines = [
+            ...this.transcriptLines,
+            { itemId: data.itemId, text: data.text, timestamp: data.timestamp, translation: null, translationError: false },
+        ];
+        this.transcriptPartial = '';
+        this.requestUpdate();
+    }
+
+    attachTranscriptTranslation(data) {
+        this.transcriptLines = this.transcriptLines.map(line =>
+            line.itemId === data.itemId ? { ...line, translation: data.text || null, translationError: !data.text } : line
+        );
+        this.requestUpdate();
     }
 
     // ── Render ──
@@ -790,6 +860,15 @@ export class CheatingDaddyApp extends LitElement {
 
             case 'history':
                 return html`<history-view></history-view>`;
+
+            case 'transcript':
+                return html`
+                    <transcript-view
+                        .lines=${this.transcriptLines}
+                        .partial=${this.transcriptPartial}
+                        .translateTo=${this.transcriptTranslateTo}
+                    ></transcript-view>
+                `;
 
             case 'assistant':
                 return html`

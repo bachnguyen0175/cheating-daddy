@@ -698,6 +698,11 @@ export class MainView extends LitElement {
         _geminiKey: { state: true },
         _groqKey: { state: true },
         _openaiKey: { state: true },
+        _openaiModel: { state: true },
+        _openaiImageModel: { state: true },
+        _openaiTranscribeModel: { state: true },
+        _transcribeLanguage: { state: true },
+        _transcribeTranslateTo: { state: true },
         _geminiLiveModel: { state: true },
         _groqModel: { state: true },
         _groqImageModel: { state: true },
@@ -727,6 +732,11 @@ export class MainView extends LitElement {
         this._geminiKey = '';
         this._groqKey = '';
         this._openaiKey = '';
+        this._openaiModel = 'gpt-4o-mini';
+        this._openaiImageModel = 'gpt-4o-mini';
+        this._openaiTranscribeModel = 'whisper-1';
+        this._transcribeLanguage = 'ja';
+        this._transcribeTranslateTo = 'Vietnamese';
         this._geminiLiveModel = 'gemini-3.1-flash-live-preview';
         this._groqModel = 'qwen/qwen3.6-27b';
         this._groqImageModel = 'qwen/qwen3.6-27b';
@@ -766,7 +776,12 @@ export class MainView extends LitElement {
             this._token = creds.cloudToken || '';
             this._geminiKey = (await cheatingDaddy.storage.getApiKey().catch(() => '')) || '';
             this._groqKey = (await cheatingDaddy.storage.getGroqApiKey().catch(() => '')) || '';
-            this._openaiKey = creds.openaiKey || '';
+            this._openaiKey = (await cheatingDaddy.storage.getOpenAiApiKey().catch(() => '')) || '';
+            this._openaiModel = config.openaiModel || 'gpt-4o-mini';
+            this._openaiImageModel = config.openaiImageModel || 'gpt-4o-mini';
+            this._openaiTranscribeModel = config.openaiTranscribeModel || 'whisper-1';
+            this._transcribeLanguage = config.transcribeLanguage || 'ja';
+            this._transcribeTranslateTo = config.transcribeTranslateTo ?? 'Vietnamese';
             this._geminiLiveModel = config.geminiLiveModel || 'gemini-3.1-flash-live-preview';
             this._groqModel = config.groqModel || 'qwen/qwen3.6-27b';
             this._groqImageModel = config.groqImageModel || 'qwen/qwen3.6-27b';
@@ -971,10 +986,38 @@ export class MainView extends LitElement {
 
     async _saveOpenaiKey(val) {
         this._openaiKey = val;
-        try {
-            const creds = await cheatingDaddy.storage.getCredentials().catch(() => ({}));
-            await cheatingDaddy.storage.setCredentials({ ...creds, openaiKey: val });
-        } catch (e) {}
+        this._keyError = false;
+        await cheatingDaddy.storage.setOpenAiApiKey(val);
+        this.requestUpdate();
+    }
+
+    async _saveOpenaiModel(val) {
+        this._openaiModel = val;
+        await cheatingDaddy.storage.updateConfig('openaiModel', val);
+        this.requestUpdate();
+    }
+
+    async _saveOpenaiImageModel(val) {
+        this._openaiImageModel = val;
+        await cheatingDaddy.storage.updateConfig('openaiImageModel', val);
+        this.requestUpdate();
+    }
+
+    async _saveOpenaiTranscribeModel(val) {
+        this._openaiTranscribeModel = val;
+        await cheatingDaddy.storage.updateConfig('openaiTranscribeModel', val);
+        this.requestUpdate();
+    }
+
+    async _saveTranscribeLanguage(val) {
+        this._transcribeLanguage = val;
+        await cheatingDaddy.storage.updateConfig('transcribeLanguage', val);
+        this.requestUpdate();
+    }
+
+    async _saveTranscribeTranslateTo(val) {
+        this._transcribeTranslateTo = val;
+        await cheatingDaddy.storage.updateConfig('transcribeTranslateTo', val);
         this.requestUpdate();
     }
 
@@ -1238,7 +1281,136 @@ export class MainView extends LitElement {
             <!-- Cloud promo intentionally removed from the active UI. -->
 
             <div class="mode-links">
+                <button class="mode-link" @click=${() => this._saveMode('openai')}>Use OpenAI</button>
+                <button class="mode-link" @click=${() => this._saveMode('transcribe')}>Live transcript</button>
                 <button class="mode-link" @click=${() => this._saveMode('local')}>Use local AI</button>
+            </div>
+        `;
+    }
+
+    // ── OpenAI mode ──
+
+    _modeSubtitle() {
+        if (this._mode === 'transcribe') return 'Live meeting transcript, on screen as they speak';
+        if (this._mode === 'openai') return 'One OpenAI key for transcription and answers';
+        if (this._mode === 'local') return 'Run models locally on your machine';
+        return 'Bring your own API keys';
+    }
+
+    _renderOpenAiMode() {
+        return html`
+            <details class="config-section" open>
+                <summary class="config-summary">
+                    <span class="config-summary-text">
+                        <span class="config-summary-title">OpenAI</span>
+                        <span class="config-summary-description">Transcription and answers, one key</span>
+                    </span>
+                    ${this._renderConfigChevron()}
+                </summary>
+                <div class="config-content">
+                    <div class="form-group">
+                        <label class="form-label">OpenAI API Key</label>
+                        <input
+                            type="password"
+                            placeholder="Required"
+                            .value=${this._openaiKey}
+                            @input=${e => this._saveOpenaiKey(e.target.value)}
+                            class=${this._keyError ? 'error' : ''}
+                        />
+                        <div class="form-hint">
+                            <span class="link" @click=${() => this.onExternalLink('https://platform.openai.com/api-keys')}>Get OpenAI key</span>
+                        </div>
+                    </div>
+
+                    <div class="config-note">This mode uses OpenAI for everything. No Gemini or Groq key is needed.</div>
+                </div>
+            </details>
+
+            <details class="config-section">
+                <summary class="config-summary">
+                    <span class="config-summary-text">
+                        <span class="config-summary-title">Models</span>
+                        <span class="config-summary-description">Response, image and transcription</span>
+                    </span>
+                    ${this._renderConfigChevron()}
+                </summary>
+                <div class="config-content">
+                    <div class="form-group">
+                        <label class="form-label">Response Model</label>
+                        <input type="text" .value=${this._openaiModel} @input=${e => this._saveOpenaiModel(e.target.value)} />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Image Model</label>
+                        <input type="text" .value=${this._openaiImageModel} @input=${e => this._saveOpenaiImageModel(e.target.value)} />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Transcription Model</label>
+                        <input type="text" .value=${this._openaiTranscribeModel} @input=${e => this._saveOpenaiTranscribeModel(e.target.value)} />
+                    </div>
+
+                    <div class="config-note">Audio is transcribed on every detected utterance, which is billed per minute.</div>
+                </div>
+            </details>
+
+            ${this._renderStartButton()} ${this._renderDivider()}
+
+            <div class="mode-links">
+                <button class="mode-link" @click=${() => this._saveMode('byok')}>Use Gemini / Groq</button>
+                <button class="mode-link" @click=${() => this._saveMode('local')}>Use local AI</button>
+            </div>
+        `;
+    }
+
+    // ── Live transcript mode ──
+
+    _renderTranscribeMode() {
+        return html`
+            <details class="config-section" open>
+                <summary class="config-summary">
+                    <span class="config-summary-text">
+                        <span class="config-summary-title">OpenAI</span>
+                        <span class="config-summary-description">Streams a live transcript of meeting audio</span>
+                    </span>
+                    ${this._renderConfigChevron()}
+                </summary>
+                <div class="config-content">
+                    <div class="form-group">
+                        <label class="form-label">OpenAI API Key</label>
+                        <input
+                            type="password"
+                            placeholder="Required"
+                            .value=${this._openaiKey}
+                            @input=${e => this._saveOpenaiKey(e.target.value)}
+                            class=${this._keyError ? 'error' : ''}
+                        />
+                        <div class="form-hint">
+                            <span class="link" @click=${() => this.onExternalLink('https://platform.openai.com/api-keys')}>Get OpenAI key</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Spoken language</label>
+                        <input type="text" .value=${this._transcribeLanguage} @input=${e => this._saveTranscribeLanguage(e.target.value)} />
+                        <div class="form-hint">ISO code, e.g. <b>ja</b> for Japanese. Pinning beats auto-detect on short utterances.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Translate each line into</label>
+                        <input type="text" .value=${this._transcribeTranslateTo} @input=${e => this._saveTranscribeTranslateTo(e.target.value)} />
+                        <div class="form-hint">Leave empty to show the original language only.</div>
+                    </div>
+
+                    <div class="config-note">Share the meeting tab or window with audio when prompted. No AI answers are generated in this mode.</div>
+                </div>
+            </details>
+
+            ${this._renderStartButton()} ${this._renderDivider()}
+
+            <div class="mode-links">
+                <button class="mode-link" @click=${() => this._saveMode('byok')}>Use Gemini / Groq</button>
+                <button class="mode-link" @click=${() => this._saveMode('openai')}>Use OpenAI</button>
             </div>
         `;
     }
@@ -1339,12 +1511,17 @@ export class MainView extends LitElement {
                                   <button class="help-btn" @click=${this._openLocalHelp} aria-label="Open Local AI help">${helpIcon}</button>
                               </div>
                           `
-                        : html` <div class="page-title">${html`Cheating Daddy <span class="mode-suffix">BYOK</span>`}</div> `
+                        : this._mode === 'transcribe'
+                          ? html` <div class="page-title">${html`Cheating Daddy <span class="mode-suffix">Live transcript</span>`}</div> `
+                          : this._mode === 'openai'
+                            ? html` <div class="page-title">${html`Cheating Daddy <span class="mode-suffix">OpenAI</span>`}</div> `
+                            : html` <div class="page-title">${html`Cheating Daddy <span class="mode-suffix">BYOK</span>`}</div> `
                 }
-                <div class="page-subtitle">${this._mode === 'byok' ? 'Bring your own API keys' : 'Run models locally on your machine'}</div>
+                <div class="page-subtitle">${this._modeSubtitle()}</div>
 
                 <!-- Cloud mode render branch intentionally disabled. -->
-                ${this._mode === 'byok' ? this._renderByokMode() : ''} ${this._mode === 'local' ? this._renderLocalMode() : ''}
+                ${this._mode === 'byok' ? this._renderByokMode() : ''} ${this._mode === 'openai' ? this._renderOpenAiMode() : ''}
+                ${this._mode === 'transcribe' ? this._renderTranscribeMode() : ''} ${this._mode === 'local' ? this._renderLocalMode() : ''}
             </div>
             ${this._mode === 'local' && this._showLocalHelp ? this._renderLocalHelp(closeIcon) : ''}
         `;

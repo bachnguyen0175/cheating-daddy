@@ -13,11 +13,19 @@ const DEFAULT_CONFIG = {
     groqModel: 'qwen/qwen3.6-27b',
     groqImageModel: 'qwen/qwen3.6-27b',
     disableGroqThinking: true,
+    openaiModel: 'gpt-4o-mini',
+    openaiImageModel: 'gpt-4o-mini',
+    openaiTranscribeModel: 'whisper-1',
+    // Live transcript mode (meetings)
+    transcribeModel: 'gpt-live-transcribe',
+    transcribeLanguage: 'ja',
+    transcribeTranslateTo: 'Vietnamese',
 };
 
 const DEFAULT_CREDENTIALS = {
     apiKey: '',
     groqApiKey: '',
+    openaiApiKey: '',
 };
 
 const DEFAULT_PREFERENCES = {
@@ -207,6 +215,14 @@ function getGroqApiKey() {
 
 function setGroqApiKey(groqApiKey) {
     return setCredentials({ groqApiKey });
+}
+
+function getOpenAiApiKey() {
+    return getCredentials().openaiApiKey || '';
+}
+
+function setOpenAiApiKey(openaiApiKey) {
+    return setCredentials({ openaiApiKey });
 }
 
 // ============ PREFERENCES ============
@@ -513,6 +529,8 @@ module.exports = {
     setApiKey,
     getGroqApiKey,
     setGroqApiKey,
+    getOpenAiApiKey,
+    setOpenAiApiKey,
 
     // Preferences
     getPreferences,

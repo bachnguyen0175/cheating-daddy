@@ -14,7 +14,21 @@ function getLocalAi() {
     return _localai;
 }
 
-// Provider mode: 'byok', 'cloud', or 'local'
+// Lazy-loaded for the same reason (openai.js imports from gemini.js)
+let _openai = null;
+function getOpenAi() {
+    if (!_openai) _openai = require('./openai');
+    return _openai;
+}
+
+// Lazy-loaded for the same reason (openai-realtime.js is main-process only)
+let _transcribe = null;
+function getTranscribe() {
+    if (!_transcribe) _transcribe = require('./openai-realtime');
+    return _transcribe;
+}
+
+// Provider mode: 'byok', 'cloud', 'local', 'openai', or 'transcribe'
 let currentProviderMode = 'byok';
 
 // Groq conversation history for context
@@ -923,6 +937,10 @@ async function startMacOSAudioCapture(geminiSessionRef) {
                 sendCloudAudio(monoChunk);
             } else if (currentProviderMode === 'local') {
                 getLocalAi().processLocalAudio(monoChunk);
+            } else if (currentProviderMode === 'openai') {
+                getOpenAi().processOpenAiAudio(monoChunk);
+            } else if (currentProviderMode === 'transcribe') {
+                getTranscribe().processTranscribeAudio(monoChunk);
             } else {
                 const base64Data = monoChunk.toString('base64');
                 sendAudioToGemini(base64Data, geminiSessionRef);
@@ -1091,6 +1109,24 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
         return success;
     });
 
+    ipcMain.handle('initialize-openai', async (event, profile = 'interview', customPrompt = '') => {
+        currentProviderMode = 'openai';
+        const success = await getOpenAi().initializeOpenAiSession(profile, customPrompt);
+        if (!success) {
+            currentProviderMode = 'byok';
+        }
+        return success;
+    });
+
+    ipcMain.handle('initialize-transcribe', async () => {
+        currentProviderMode = 'transcribe';
+        const success = await getTranscribe().initializeTranscribeSession();
+        if (!success) {
+            currentProviderMode = 'byok';
+        }
+        return success;
+    });
+
     ipcMain.handle('cancel-local-initialization', async () => {
         const cancelled = await getLocalAi().cancelLocalInitialization();
         if (cancelled) {
@@ -1117,6 +1153,24 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return { success: true };
             } catch (error) {
                 console.error('Error sending local audio:', error);
+                return { success: false, error: error.message };
+            }
+        }
+        if (currentProviderMode === 'openai') {
+            try {
+                getOpenAi().processOpenAiAudio(Buffer.from(data, 'base64'));
+                return { success: true };
+            } catch (error) {
+                console.error('Error sending OpenAI audio:', error);
+                return { success: false, error: error.message };
+            }
+        }
+        if (currentProviderMode === 'transcribe') {
+            try {
+                getTranscribe().processTranscribeAudio(Buffer.from(data, 'base64'));
+                return { success: true };
+            } catch (error) {
+                console.error('Error sending transcribe audio:', error);
                 return { success: false, error: error.message };
             }
         }
@@ -1152,6 +1206,24 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return { success: true };
             } catch (error) {
                 console.error('Error sending local mic audio:', error);
+                return { success: false, error: error.message };
+            }
+        }
+        if (currentProviderMode === 'openai') {
+            try {
+                getOpenAi().processOpenAiAudio(Buffer.from(data, 'base64'));
+                return { success: true };
+            } catch (error) {
+                console.error('Error sending OpenAI mic audio:', error);
+                return { success: false, error: error.message };
+            }
+        }
+        if (currentProviderMode === 'transcribe') {
+            try {
+                getTranscribe().processTranscribeAudio(Buffer.from(data, 'base64'));
+                return { success: true };
+            } catch (error) {
+                console.error('Error sending transcribe mic audio:', error);
                 return { success: false, error: error.message };
             }
         }
@@ -1197,6 +1269,14 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return result;
             }
 
+            if (currentProviderMode === 'openai') {
+                return await getOpenAi().sendOpenAiImage(data, prompt);
+            }
+
+            if (currentProviderMode === 'transcribe') {
+                return { success: false, error: 'Screenshot questions are not available in live transcript mode' };
+            }
+
             const result = hasGroqKey() ? await sendImageToGroq(data, prompt) : await sendImageToGeminiHttp(data, prompt);
             return result;
         } catch (error) {
@@ -1229,6 +1309,20 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 console.error('Error sending local text:', error);
                 return { success: false, error: error.message };
             }
+        }
+
+        if (currentProviderMode === 'openai') {
+            try {
+                console.log('Sending text to OpenAI:', text);
+                return await getOpenAi().sendOpenAiText(text.trim());
+            } catch (error) {
+                console.error('Error sending OpenAI text:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        if (currentProviderMode === 'transcribe') {
+            return { success: false, error: 'Chat is not available in live transcript mode' };
         }
 
         if (!geminiSessionRef.current) return { success: false, error: 'No active Gemini session' };
@@ -1289,6 +1383,20 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 
             if (currentProviderMode === 'local') {
                 getLocalAi().closeLocalSession();
+                currentProviderMode = 'byok';
+                closeTransportLog();
+                return { success: true };
+            }
+
+            if (currentProviderMode === 'openai') {
+                getOpenAi().closeOpenAiSession();
+                currentProviderMode = 'byok';
+                closeTransportLog();
+                return { success: true };
+            }
+
+            if (currentProviderMode === 'transcribe') {
+                getTranscribe().closeTranscribeSession();
                 currentProviderMode = 'byok';
                 closeTransportLog();
                 return { success: true };

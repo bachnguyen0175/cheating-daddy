@@ -41,6 +41,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
     stopMacOSAudioCapture();
     require('./utils/localai').closeLocalSession();
+    require('./utils/openai-realtime').closeTranscribeSession();
 });
 
 app.on('activate', () => {
@@ -134,6 +135,25 @@ function setupStorageIpcHandlers() {
             return { success: true };
         } catch (error) {
             console.error('Error setting Groq API key:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('storage:get-openai-api-key', async () => {
+        try {
+            return { success: true, data: storage.getOpenAiApiKey() };
+        } catch (error) {
+            console.error('Error getting OpenAI API key:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('storage:set-openai-api-key', async (event, openaiApiKey) => {
+        try {
+            storage.setOpenAiApiKey(openaiApiKey);
+            return { success: true };
+        } catch (error) {
+            console.error('Error setting OpenAI API key:', error);
             return { success: false, error: error.message };
         }
     });

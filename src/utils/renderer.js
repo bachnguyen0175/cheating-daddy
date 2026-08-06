@@ -56,6 +56,13 @@ const storage = {
     async setGroqApiKey(groqApiKey) {
         return ipcRenderer.invoke('storage:set-groq-api-key', groqApiKey);
     },
+    async getOpenAiApiKey() {
+        const result = await ipcRenderer.invoke('storage:get-openai-api-key');
+        return result.success ? result.data : '';
+    },
+    async setOpenAiApiKey(openaiApiKey) {
+        return ipcRenderer.invoke('storage:set-openai-api-key', openaiApiKey);
+    },
 
     // Preferences
     async getPreferences() {
@@ -173,6 +180,41 @@ async function cancelLocalInitialization() {
     return ipcRenderer.invoke('cancel-local-initialization');
 }
 
+async function initializeOpenAI(profile = 'interview') {
+    const apiKey = await storage.getOpenAiApiKey();
+    if (!apiKey || !apiKey.trim()) {
+        cheatingDaddy.setStatus('error');
+        return false;
+    }
+
+    const prefs = await storage.getPreferences();
+    const success = await ipcRenderer.invoke('initialize-openai', profile, prefs.customPrompt || '');
+    if (success) {
+        cheatingDaddy.setStatus('OpenAI Live');
+        return true;
+    } else {
+        cheatingDaddy.setStatus('error');
+        return false;
+    }
+}
+
+async function initializeTranscribe() {
+    const apiKey = await storage.getOpenAiApiKey();
+    if (!apiKey || !apiKey.trim()) {
+        cheatingDaddy.setStatus('error');
+        return false;
+    }
+
+    const success = await ipcRenderer.invoke('initialize-transcribe');
+    if (success) {
+        cheatingDaddy.setStatus('Live transcript');
+        return true;
+    } else {
+        cheatingDaddy.setStatus('error');
+        return false;
+    }
+}
+
 async function initializeCloud(profile = 'interview') {
     const creds = await storage.getCredentials();
     const token = creds.cloudToken;
@@ -191,6 +233,18 @@ async function initializeCloud(profile = 'interview') {
         return false;
     }
 }
+
+ipcRenderer.on('transcript-partial', (event, data) => {
+    cheatingDaddyApp?.updateTranscriptPartial?.(data);
+});
+
+ipcRenderer.on('transcript-final', (event, data) => {
+    cheatingDaddyApp?.commitTranscriptLine?.(data);
+});
+
+ipcRenderer.on('transcript-translation', (event, data) => {
+    cheatingDaddyApp?.attachTranscriptTranslation?.(data);
+});
 
 // Listen for status updates
 ipcRenderer.on('update-status', (event, status) => {
@@ -1089,6 +1143,8 @@ const cheatingDaddy = {
     initializeCloud,
     initializeLocal,
     cancelLocalInitialization,
+    initializeOpenAI,
+    initializeTranscribe,
     startCapture,
     stopCapture,
     sendTextMessage,

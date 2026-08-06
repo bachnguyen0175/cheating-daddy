@@ -820,100 +820,6 @@ export class MainView extends LitElement {
         }
     }
 
-    _initButtonAurora() {
-        const btn = this.shadowRoot.querySelector('.start-button');
-        const aurora = this.shadowRoot.querySelector('canvas.btn-aurora');
-        const dither = this.shadowRoot.querySelector('canvas.btn-dither');
-        if (!aurora || !dither || !btn) return;
-
-        // Mouse tracking
-        this._mouseX = -1;
-        this._mouseY = -1;
-        btn.addEventListener('mousemove', e => {
-            const rect = btn.getBoundingClientRect();
-            this._mouseX = (e.clientX - rect.left) / rect.width;
-            this._mouseY = (e.clientY - rect.top) / rect.height;
-        });
-        btn.addEventListener('mouseleave', () => {
-            this._mouseX = -1;
-            this._mouseY = -1;
-        });
-
-        // Dither
-        const blockSize = 8;
-        const cols = Math.ceil(aurora.offsetWidth / blockSize);
-        const rows = Math.ceil(aurora.offsetHeight / blockSize);
-        dither.width = cols;
-        dither.height = rows;
-        const dCtx = dither.getContext('2d');
-        const img = dCtx.createImageData(cols, rows);
-        for (let i = 0; i < img.data.length; i += 4) {
-            const v = Math.random() > 0.5 ? 255 : 0;
-            img.data[i] = v;
-            img.data[i + 1] = v;
-            img.data[i + 2] = v;
-            img.data[i + 3] = 255;
-        }
-        dCtx.putImageData(img, 0, 0);
-
-        // Aurora
-        const ctx = aurora.getContext('2d');
-        const scale = 0.4;
-        aurora.width = Math.floor(aurora.offsetWidth * scale);
-        aurora.height = Math.floor(aurora.offsetHeight * scale);
-
-        const blobs = [
-            { color: [120, 160, 230], x: 0.1, y: 0.3, vx: 0.25, vy: 0.2, phase: 0 },
-            { color: [150, 120, 220], x: 0.8, y: 0.5, vx: -0.2, vy: 0.25, phase: 1.5 },
-            { color: [200, 140, 210], x: 0.5, y: 0.6, vx: 0.18, vy: -0.22, phase: 3.0 },
-            { color: [100, 190, 190], x: 0.3, y: 0.7, vx: 0.3, vy: 0.15, phase: 4.5 },
-            { color: [220, 170, 130], x: 0.7, y: 0.4, vx: -0.22, vy: -0.25, phase: 6.0 },
-        ];
-
-        const draw = () => {
-            this._time += 0.008;
-            const w = aurora.width;
-            const h = aurora.height;
-            const maxDim = Math.max(w, h);
-
-            ctx.fillStyle = '#f0f0f0';
-            ctx.fillRect(0, 0, w, h);
-
-            const hovering = this._mouseX >= 0;
-
-            for (const blob of blobs) {
-                const t = this._time;
-                const cx = (blob.x + Math.sin(t * blob.vx + blob.phase) * 0.4) * w;
-                const cy = (blob.y + Math.cos(t * blob.vy + blob.phase * 0.7) * 0.4) * h;
-                const r = maxDim * 0.45;
-
-                let boost = 1;
-                if (hovering) {
-                    const dx = cx / w - this._mouseX;
-                    const dy = cy / h - this._mouseY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    boost = 1 + 2.5 * Math.max(0, 1 - dist / 0.6);
-                }
-
-                const a0 = Math.min(1, 0.18 * boost);
-                const a1 = Math.min(1, 0.08 * boost);
-                const a2 = Math.min(1, 0.02 * boost);
-
-                const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-                grad.addColorStop(0, `rgba(${blob.color[0]}, ${blob.color[1]}, ${blob.color[2]}, ${a0})`);
-                grad.addColorStop(0.3, `rgba(${blob.color[0]}, ${blob.color[1]}, ${blob.color[2]}, ${a1})`);
-                grad.addColorStop(0.6, `rgba(${blob.color[0]}, ${blob.color[1]}, ${blob.color[2]}, ${a2})`);
-                grad.addColorStop(1, `rgba(${blob.color[0]}, ${blob.color[1]}, ${blob.color[2]}, 0)`);
-                ctx.fillStyle = grad;
-                ctx.fillRect(0, 0, w, h);
-            }
-
-            this._animId = requestAnimationFrame(draw);
-        };
-
-        draw();
-    }
-
     _handleKeydown(e) {
         if (e.key === 'Escape' && this._showLocalHelp) {
             this._closeLocalHelp();
@@ -934,16 +840,6 @@ export class MainView extends LitElement {
         this._tokenError = false;
         this._keyError = false;
         await cheatingDaddy.storage.updatePreference('providerMode', mode);
-        this.requestUpdate();
-    }
-
-    async _saveToken(val) {
-        this._token = val;
-        this._tokenError = false;
-        try {
-            const creds = await cheatingDaddy.storage.getCredentials().catch(() => ({}));
-            await cheatingDaddy.storage.setCredentials({ ...creds, cloudToken: val });
-        } catch (e) {}
         this.requestUpdate();
     }
 

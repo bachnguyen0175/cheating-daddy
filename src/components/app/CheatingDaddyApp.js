@@ -693,20 +693,6 @@ export class CheatingDaddyApp extends LitElement {
         await cheatingDaddy.cancelLocalInitialization();
     }
 
-    async handleAPIKeyHelp() {
-        if (window.require) {
-            const { ipcRenderer } = window.require('electron');
-            await ipcRenderer.invoke('open-external', 'https://cheatingdaddy.com/help/api-key');
-        }
-    }
-
-    async handleGroqAPIKeyHelp() {
-        if (window.require) {
-            const { ipcRenderer } = window.require('electron');
-            await ipcRenderer.invoke('open-external', 'https://console.groq.com/keys');
-        }
-    }
-
     // ── Settings handlers ──
 
     async handleProfileChange(profile) {

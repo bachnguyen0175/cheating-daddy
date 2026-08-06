@@ -7,19 +7,30 @@ packaging.
 
 ## Getting started
 
+This project uses **pnpm**. The version is pinned via the `packageManager` field
+in `package.json`, so `corepack enable pnpm` picks the right one automatically.
+
 Install dependencies and run the development app:
 
 ```
-1. npm install
-2. npm start
+1. pnpm install
+2. pnpm start
 ```
+
+Two pnpm settings are load-bearing and should not be removed:
+
+- `.npmrc` sets `node-linker=hoisted`. Electron Forge walks a flat `node_modules`
+  when packaging, which pnpm's default symlinked layout breaks.
+- `package.json` lists `pnpm.onlyBuiltDependencies`. pnpm 10 blocks dependency
+  build scripts by default, and Electron's `postinstall` is what downloads its
+  binary — without this, `pnpm start` fails with a missing `electron/dist/electron`.
 
 ## Style
 
 Run `npx prettier --write .` before committing. Prettier uses the settings in
 `.prettierrc` (four-space indentation, print width 150, semicolons and single
 quotes). `src/assets` and `node_modules` are ignored via `.prettierignore`.
-The project does not provide linting; `npm run lint` simply prints
+The project does not provide linting; `pnpm lint` simply prints
 "No linting configured".
 
 ## Code standards
@@ -53,9 +64,10 @@ Follow these guidelines when working on UI code:
 
 ## Tests
 
-No automated tests yet. When a suite is added, run `npm test` before each
-commit. Until then, at minimum ensure `npm install` and `npm start` work after
-merging upstream changes.
+Run `pnpm test` before each commit. The suite uses Node's built-in test runner
+(`node --test test/`), so it needs no devDependencies and runs without an
+Electron runtime. Also ensure `pnpm install` and `pnpm start` work after merging
+upstream changes.
 
 ## Merging upstream PRs
 

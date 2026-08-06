@@ -4,11 +4,21 @@
     "version": "0.8.0",
     "description": "cheating daddy",
     "main": "src/index.js",
+    "packageManager": "pnpm@10.15.1",
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "electron",
+            "electron-winstaller",
+            "@google/genai",
+            "protobufjs"
+        ]
+    },
     "scripts": {
         "start": "electron-forge start",
         "package": "electron-forge package",
         "make": "electron-forge make",
         "publish": "electron-forge publish",
+        "test": "node --test test/",
         "lint": "echo \"No linting configured\""
     },
     "keywords": [

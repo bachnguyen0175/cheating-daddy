@@ -65,8 +65,10 @@ Follow these guidelines when working on UI code:
 ## Tests
 
 Run `pnpm test` before each commit. The suite uses Node's built-in test runner
-(`node --test test/`), so it needs no devDependencies and runs without an
-Electron runtime. Also ensure `pnpm install` and `pnpm start` work after merging
+(`node --test`), so it needs no devDependencies and runs without an
+Electron runtime. Node discovers the test files itself — do not pass `test/` as an
+argument, as Node 26 treats a bare directory positional as a module to load and
+fails with `MODULE_NOT_FOUND`. Also ensure `pnpm install` and `pnpm start` work after merging
 upstream changes.
 
 ## Merging upstream PRs

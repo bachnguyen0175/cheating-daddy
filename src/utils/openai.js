@@ -212,7 +212,7 @@ async function initializeOpenAiSession(profile, customPrompt) {
         console.error('[OpenAI] Initialization error:', error);
         closeOpenAiSession();
         sendToRenderer('session-initializing', false);
-        sendToRenderer('update-status', 'OpenAI error: ' + error.message);
+        sendToRenderer('update-status', `OpenAI error: ${error.message}`);
         return false;
     }
 }

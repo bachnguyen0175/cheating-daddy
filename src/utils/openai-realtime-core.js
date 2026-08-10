@@ -86,7 +86,7 @@ function applyServerEvent(state, event) {
     const items = state.items;
 
     if (event?.type === DELTA_EVENT) {
-        const text = event.delta || '';
+        const text = event.delta ?? '';
         if (!text) return { state, effects: [] };
 
         const accumulated = (items.get(event.item_id) || '') + text;

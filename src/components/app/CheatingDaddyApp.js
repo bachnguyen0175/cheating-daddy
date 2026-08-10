@@ -648,7 +648,7 @@ export class CheatingDaddyApp extends LitElement {
             }
 
             const config = await cheatingDaddy.storage.getConfig();
-            this.transcriptTranslateTo = config.transcribeTranslateTo || '';
+            this.transcriptTranslateTo = config.transcribeTranslateTo ?? '';
             this.transcriptLines = [];
             this.transcriptPartial = '';
 
@@ -731,7 +731,7 @@ export class CheatingDaddyApp extends LitElement {
     async handleSendText(message) {
         const result = await window.cheatingDaddy.sendTextMessage(message);
         if (!result.success) {
-            this.setStatus('Error sending message: ' + result.error);
+            this.setStatus(`Error sending message: ${result.error}`);
         } else {
             this.setStatus('Message sent...');
             this._awaitingNewResponse = true;
@@ -766,7 +766,7 @@ export class CheatingDaddyApp extends LitElement {
     // ── Live transcript ──
 
     updateTranscriptPartial(data) {
-        this.transcriptPartial = data.text || '';
+        this.transcriptPartial = data.text ?? '';
         this.requestUpdate();
     }
 

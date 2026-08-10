@@ -773,7 +773,7 @@ export class MainView extends LitElement {
             }
 
             // Load keys
-            this._token = creds.cloudToken || '';
+            this._token = creds.cloudToken ?? '';
             this._geminiKey = (await cheatingDaddy.storage.getApiKey().catch(() => '')) || '';
             this._groqKey = (await cheatingDaddy.storage.getGroqApiKey().catch(() => '')) || '';
             this._openaiKey = (await cheatingDaddy.storage.getOpenAiApiKey().catch(() => '')) || '';

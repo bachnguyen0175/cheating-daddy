@@ -52,7 +52,7 @@ export class AICustomizeView extends LitElement {
     async _loadFromStorage() {
         try {
             const prefs = await cheatingDaddy.storage.getPreferences();
-            this._context = prefs.customPrompt || '';
+            this._context = prefs.customPrompt ?? '';
             this.requestUpdate();
         } catch (error) {
             console.error('Error loading AI customize storage:', error);
@@ -117,7 +117,6 @@ export class AICustomizeView extends LitElement {
                             </div>
                         </div>
                     </section>
-
                 </div>
             </div>
         `;

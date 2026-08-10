@@ -69,7 +69,9 @@ function connect() {
             if (!isConnected) {
                 try {
                     ws.close();
-                } catch (e) {}
+                } catch (e) {
+                    console.warn('[Transcribe] Error closing timed-out socket:', e.message);
+                }
                 reject(new Error('Realtime connection timeout'));
             }
         }, CONNECT_TIMEOUT_MS);
@@ -202,7 +204,7 @@ async function initializeTranscribeSession() {
         console.error('[Transcribe] Initialization error:', error.message);
         closeTranscribeSession();
         sendToRenderer('session-initializing', false);
-        sendToRenderer('update-status', 'Transcript error: ' + error.message);
+        sendToRenderer('update-status', `Transcript error: ${error.message}`);
         return false;
     }
 }
@@ -307,7 +309,9 @@ function closeTranscribeSession() {
     if (ws) {
         try {
             ws.close();
-        } catch (e) {}
+        } catch (e) {
+            console.warn('[Transcribe] Error closing socket:', e.message);
+        }
         ws = null;
     }
 }

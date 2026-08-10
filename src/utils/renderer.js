@@ -164,7 +164,7 @@ async function initializeLocal(profile = 'interview') {
     const prefs = await storage.getPreferences();
     const localLlmModel = prefs.localLlmModel || 'unsloth/Qwen3.5-4B-GGUF:Q4_K_M';
     const whisperModel = prefs.whisperModel || 'tiny.en';
-    const customPrompt = prefs.customPrompt || '';
+    const customPrompt = prefs.customPrompt ?? '';
 
     const success = await ipcRenderer.invoke('initialize-local', localLlmModel, whisperModel, profile, customPrompt);
     if (success) {
@@ -268,7 +268,7 @@ async function startCapture(screenshotIntervalSeconds = 5, imageQuality = 'mediu
             // Start macOS audio capture
             const audioResult = await ipcRenderer.invoke('start-macos-audio');
             if (!audioResult.success) {
-                throw new Error('Failed to start macOS audio capture: ' + audioResult.error);
+                throw new Error(`Failed to start macOS audio capture: ${audioResult.error}`);
             }
 
             // Get screen capture for screenshots
@@ -1080,4 +1080,11 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => theme.load());
 } else {
     theme.load();
+}
+
+// Exported for unit tests only. This file is loaded as a plain <script> in the
+// renderer, where nothing reads module.exports, so the guard keeps the browser
+// path untouched while letting `node --test` reach the audio helpers.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { convertFloat32ToInt16, arrayBufferToBase64 };
 }

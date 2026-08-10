@@ -105,6 +105,10 @@ __pycache__/
 .claude/
 .mcp.json
 
+# Agent skills installed via `npx skills add` (vendored copies + their lockfile)
+.agents/
+skills-lock.json
+
 # Editors
 .vscode/
 .idea/

@@ -38,26 +38,43 @@ const VAD_MODES = {
 
 let vadConfig = VAD_MODES.VERY_AGGRESSIVE;
 let resampleRemainder = Buffer.alloc(0);
+// Sub-sample offset of the next output relative to resampleRemainder[0], counted
+// in half-samples so it stays exact integer arithmetic. 24 kHz -> 16 kHz advances
+// 1.5 input samples per output, so a chunk can end mid-sample; without carrying
+// that half-sample the next chunk restarts the grid at 0 and the resampling
+// phase slips at every buffer boundary.
+let resamplePhaseHalves = 0;
+
+// Output n lands at input position (resamplePhaseHalves + n * 3) / 2.
+const RESAMPLE_STEP_HALVES = 3;
 
 function resample24kTo16k(inputBuffer) {
     const combined = Buffer.concat([resampleRemainder, inputBuffer]);
     const inputSamples = Math.floor(combined.length / 2);
-    const outputSamples = Math.floor((inputSamples * 2) / 3);
+
+    // Emit only outputs whose interpolation pair is fully present, i.e. where
+    // floor(position) + 1 <= inputSamples - 1. Solving for the output count:
+    //   phase + n * 3 <= 2 * inputSamples - 3
+    const lastHalves = 2 * inputSamples - 3 - resamplePhaseHalves;
+    const outputSamples = lastHalves < 0 ? 0 : Math.floor(lastHalves / RESAMPLE_STEP_HALVES) + 1;
     const outputBuffer = Buffer.alloc(outputSamples * 2);
 
     for (let i = 0; i < outputSamples; i++) {
-        const sourcePosition = (i * 3) / 2;
-        const sourceIndex = Math.floor(sourcePosition);
-        const fraction = sourcePosition - sourceIndex;
+        const positionHalves = resamplePhaseHalves + i * RESAMPLE_STEP_HALVES;
+        const sourceIndex = positionHalves >> 1;
+        const fraction = (positionHalves & 1) / 2;
         const firstSample = combined.readInt16LE(sourceIndex * 2);
-        const secondSample = sourceIndex + 1 < inputSamples ? combined.readInt16LE((sourceIndex + 1) * 2) : firstSample;
+        const secondSample = combined.readInt16LE((sourceIndex + 1) * 2);
         const interpolated = Math.round(firstSample + fraction * (secondSample - firstSample));
         outputBuffer.writeInt16LE(Math.max(-32768, Math.min(32767, interpolated)), i * 2);
     }
 
-    const consumedInputSamples = Math.ceil((outputSamples * 3) / 2);
-    const remainderStart = consumedInputSamples * 2;
-    resampleRemainder = remainderStart < combined.length ? combined.slice(remainderStart) : Buffer.alloc(0);
+    // Keep every sample the next output still needs, and carry the leftover
+    // half-sample so the grid continues uninterrupted into the next chunk.
+    const nextPositionHalves = resamplePhaseHalves + outputSamples * RESAMPLE_STEP_HALVES;
+    const consumedInputSamples = nextPositionHalves >> 1;
+    resamplePhaseHalves = nextPositionHalves & 1;
+    resampleRemainder = combined.slice(consumedInputSamples * 2);
 
     return outputBuffer;
 }
@@ -179,7 +196,7 @@ async function handleSpeechEnd(audioData) {
         await sendToLlama(transcription);
     } catch (error) {
         console.error('[LocalAI] Transcription error:', error);
-        sendToRenderer('update-status', 'Transcription error: ' + error.message);
+        sendToRenderer('update-status', `Transcription error: ${error.message}`);
     }
 }
 
@@ -269,7 +286,7 @@ async function sendToLlama(transcription) {
         sendToRenderer('update-status', 'Listening...');
     } catch (error) {
         console.error('[LocalAI] Llama error:', error);
-        sendToRenderer('update-status', 'Local AI error: ' + error.message);
+        sendToRenderer('update-status', `Local AI error: ${error.message}`);
         throw error;
     }
 }
@@ -449,6 +466,7 @@ async function initializeLocalSession(model, whisperModel, profile, customPrompt
         silenceFrameCount = 0;
         speechFrameCount = 0;
         resampleRemainder = Buffer.alloc(0);
+        resamplePhaseHalves = 0;
         localConversationHistory = [];
 
         initializeNewSession(profile, customPrompt);
@@ -472,7 +490,7 @@ async function initializeLocalSession(model, whisperModel, profile, customPrompt
         }
         sendToRenderer('local-ai-download-progress', { active: false });
         sendToRenderer('session-initializing', false);
-        sendToRenderer('update-status', wasCancelled ? 'Local AI download cancelled' : 'Local AI error: ' + error.message);
+        sendToRenderer('update-status', wasCancelled ? 'Local AI download cancelled' : `Local AI error: ${error.message}`);
         return false;
     }
 }
@@ -502,6 +520,7 @@ function closeLocalSession() {
     silenceFrameCount = 0;
     speechFrameCount = 0;
     resampleRemainder = Buffer.alloc(0);
+    resamplePhaseHalves = 0;
     localConversationHistory = [];
     currentSystemPrompt = null;
 }
@@ -584,7 +603,7 @@ async function sendLocalImage(base64Data, prompt) {
         return { success: true, text: fullText, model: llamaModel };
     } catch (error) {
         console.error('[LocalAI] Image error:', error);
-        sendToRenderer('update-status', 'Local AI image error: ' + error.message);
+        sendToRenderer('update-status', `Local AI image error: ${error.message}`);
         return { success: false, error: error.message };
     }
 }
@@ -597,4 +616,9 @@ module.exports = {
     isLocalSessionActive,
     sendLocalText,
     sendLocalImage,
+    // Exported for unit tests: the audio front-end is pure enough to verify
+    // directly, and doing so through initializeLocalSession() would require a
+    // running llama.cpp/whisper.cpp pair.
+    resample24kTo16k,
+    calculateRms,
 };
